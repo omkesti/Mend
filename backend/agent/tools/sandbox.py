@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shlex
+import shutil
 from pathlib import Path
 from typing import TypedDict
 
@@ -77,10 +78,27 @@ async def _run(
     # POSIX-style parsing strips quotes correctly into argv on all platforms;
     # test/install commands are simple flag-based commands without backslashes.
     args = shlex.split(command)
+    env = _build_env(workspace_path, stack)
+
+    # Resolve the executable on the sandbox PATH. On Windows, npm/npx are .cmd
+    # shims that CreateProcess can't launch directly, so route them through
+    # cmd.exe. Command strings come from the trusted stack_detector, never the
+    # LLM, so this is safe.
+    exe = shutil.which(args[0], path=env.get("PATH"))
+    if exe is None:
+        return CommandResult(
+            returncode=127, stdout="",
+            stderr=f"executable not found on PATH: {args[0]}", timed_out=False,
+        )
+    if os.name == "nt" and exe.lower().endswith((".cmd", ".bat")):
+        full_args = [os.environ.get("COMSPEC", "cmd.exe"), "/c", exe, *args[1:]]
+    else:
+        full_args = [exe, *args[1:]]
+
     proc = await asyncio.create_subprocess_exec(
-        *args,
+        *full_args,
         cwd=workspace_path,
-        env=_build_env(workspace_path, stack),
+        env=env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

@@ -120,7 +120,15 @@ def get_ci_status(owner: str, repo_name: str, branch_name: str) -> str:
         runs = repo.get_workflow_runs(branch=branch_name)
 
         if runs.totalCount == 0:
-            return "no_ci"
+            # No run for this branch yet. Distinguish a repo with no CI at all
+            # ("no_ci") from one where the workflow simply hasn't registered a
+            # run yet ("pending", so monitor_ci keeps polling) — otherwise a
+            # just-pushed branch races the Actions scheduler and looks like no_ci.
+            try:
+                configured = repo.get_workflows().totalCount > 0
+            except GithubException:
+                configured = False
+            return "pending" if configured else "no_ci"
 
         latest = runs[0]  # most recent first
         if latest.status != "completed":

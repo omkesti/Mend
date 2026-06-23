@@ -30,6 +30,7 @@ async def monitor_ci(state: AgentState) -> dict:
         status = await asyncio.to_thread(
             github.get_ci_status, owner, repo_name, branch
         )
+        logger.info("monitor_ci poll %s/%s -> %s", i + 1, len(_BACKOFF_SCHEDULE), status)
         if status in ("passed", "failed", "no_ci") or status.startswith("error:"):
             break
         if i < len(_BACKOFF_SCHEDULE) - 1:

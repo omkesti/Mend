@@ -33,8 +33,12 @@ def analyze_ok(state: AgentState) -> str:
 
 
 def has_failures(state: AgentState) -> str:
-    """Route after run_tests: tests green → 'passing', otherwise 'failing'."""
-    return "passing" if state.get("all_tests_passing") else "failing"
+    """Route after run_tests: exit the loop ('passing' → END) when the tests
+    are green OR run_tests asked to stop (e.g. a timeout); otherwise 'failing'.
+    """
+    if state.get("all_tests_passing") or state.get("should_stop"):
+        return "passing"
+    return "failing"
 
 
 def should_stop(state: AgentState) -> str:

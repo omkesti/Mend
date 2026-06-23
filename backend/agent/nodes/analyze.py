@@ -48,6 +48,23 @@ async def analyze_repo(state: AgentState) -> dict:
                 "error": "Could not detect a supported tech stack (python, node, go).",
             }
 
+        if not stack_info["test_files"]:
+            logger.warning("No test files found for run %s — stopping", state["run_id"])
+            return {
+                "workspace_path": workspace_path,
+                "branch_name": state["branch_name"],
+                "repo_owner": owner,
+                "repo_name": repo_name,
+                "detected_stack": stack_info["stack"],
+                "test_command": stack_info["test_command"],
+                "test_files": [],
+                "started_at": started_at,
+                "current_iteration": 0,
+                "all_tests_passing": False,
+                "should_stop": True,
+                "error": f"No test files found in the repository (detected {stack_info['stack']} stack).",
+            }
+
         await sandbox.install_dependencies(workspace_path, stack_info["stack"])
 
         return {

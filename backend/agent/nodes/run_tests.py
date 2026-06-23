@@ -11,8 +11,10 @@ import logging
 
 from agent.state import AgentState
 from agent.tools import sandbox
+from config import get_settings
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 async def run_tests_node(state: AgentState) -> dict:
@@ -23,7 +25,14 @@ async def run_tests_node(state: AgentState) -> dict:
         state["detected_stack"],
     )
 
-    if result["returncode"] == 0 and not result["timed_out"]:
+    if result["timed_out"]:
+        # A suite that won't run can't be healed — stop with a clear message.
+        msg = f"Test execution timed out after {settings.sandbox_timeout}s."
+        logger.warning("run_tests timed out for run %s", state.get("run_id"))
+        return {"all_tests_passing": False, "should_stop": True, "error": msg,
+                "raw_test_output": msg}
+
+    if result["returncode"] == 0:
         return {"all_tests_passing": True, "failures": []}
 
     combined = result["stdout"]
