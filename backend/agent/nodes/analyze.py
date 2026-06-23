@@ -30,61 +30,51 @@ async def analyze_repo(state: AgentState) -> dict:
         github.clone_repo(state["repo_url"], workspace_path)
         github.create_branch(workspace_path, state["branch_name"])
 
-        stack_info = stack_detector.detect_stack(workspace_path)
+        detected = stack_detector.detect_projects(workspace_path)
 
-        if stack_info["stack"] == "unknown":
-            logger.warning("Unknown stack for run %s — stopping", state["run_id"])
-            return {
-                "workspace_path": workspace_path,
-                "repo_owner": owner,
-                "repo_name": repo_name,
-                "detected_stack": "unknown",
-                "test_command": "",
-                "test_files": [],
-                "started_at": started_at,
-                "current_iteration": 0,
-                "all_tests_passing": False,
-                "should_stop": True,
-                "error": "Could not detect a supported tech stack (python, node, go).",
-            }
-
-        if not stack_info["test_files"]:
-            logger.warning("No test files found for run %s — stopping", state["run_id"])
-            return {
-                "workspace_path": workspace_path,
-                "branch_name": state["branch_name"],
-                "repo_owner": owner,
-                "repo_name": repo_name,
-                "detected_stack": stack_info["stack"],
-                "test_command": stack_info["test_command"],
-                "test_files": [],
-                "started_at": started_at,
-                "current_iteration": 0,
-                "all_tests_passing": False,
-                "should_stop": True,
-                "error": f"No test files found in the repository (detected {stack_info['stack']} stack).",
-            }
-
-        await sandbox.install_dependencies(workspace_path, stack_info["stack"])
-
-        return {
+        base = {
             "workspace_path": workspace_path,
             "branch_name": state["branch_name"],
             "repo_owner": owner,
             "repo_name": repo_name,
-            "detected_stack": stack_info["stack"],
-            "test_command": stack_info["test_command"],
-            "test_files": stack_info["test_files"],
             "started_at": started_at,
             "current_iteration": 0,
             "all_tests_passing": False,
-            "should_stop": False,
-            "error": None,
         }
+
+        if not detected:
+            logger.warning("Unknown stack for run %s — stopping", state["run_id"])
+            return {**base, "detected_stack": "unknown", "projects": [],
+                    "should_stop": True,
+                    "error": "Could not detect a supported tech stack (python, node, go)."}
+
+        # Heal every project that actually has tests.
+        testable = [p for p in detected if p["test_files"]]
+        detected_summary = ", ".join(sorted({p["stack"] for p in detected}))
+
+        if not testable:
+            logger.warning("No test files found for run %s — stopping", state["run_id"])
+            return {**base, "detected_stack": detected_summary, "projects": [],
+                    "should_stop": True,
+                    "error": f"No test files found in the repository (detected {detected_summary})."}
+
+        projects = []
+        for p in testable:
+            project_dir = os.path.join(workspace_path, p["project_dir"]) if p["project_dir"] else workspace_path
+            await sandbox.install_dependencies(project_dir, p["stack"])
+            projects.append({"stack": p["stack"], "project_dir": project_dir,
+                             "test_command": p["test_command"]})
+
+        logger.info("run %s: healing %s project(s): %s", state["run_id"], len(projects),
+                    ", ".join(f"{p['stack']}@{p['project_dir']}" for p in projects))
+
+        return {**base, "detected_stack": ", ".join(sorted({p["stack"] for p in projects})),
+                "projects": projects, "should_stop": False, "error": None}
     except Exception as exc:  # noqa: BLE001 — terminal setup failure, report it
         logger.exception("analyze_repo failed for run %s", state["run_id"])
         return {
             "workspace_path": workspace_path,
+            "projects": [],
             "started_at": started_at,
             "current_iteration": 0,
             "all_tests_passing": False,

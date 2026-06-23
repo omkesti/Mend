@@ -1,14 +1,6 @@
 import type { AgentRun } from "../types";
+import { shortRepo } from "../lib/format";
 import StatusBadge from "./StatusBadge";
-
-function shortRepo(url: string): string {
-  return url
-    .replace(/\.git$/, "")
-    .replace(/\/$/, "")
-    .split("/")
-    .slice(-2)
-    .join("/");
-}
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (

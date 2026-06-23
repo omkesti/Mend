@@ -51,7 +51,13 @@ def build_results(state: AgentState, started_at: str) -> dict:
     if timeline:
         timeline[-1]["status"] = "passed" if status == "passed" else "failed"
 
-    score = compute_score(duration, total_commits)
+    # A run only earns a score if it actually healed the repo. A failed or
+    # aborted run (bad clone, no tests, unsupported stack, retries exhausted)
+    # scores 0 — otherwise a fast failure would misleadingly show ~110.
+    if status == "passed":
+        score = compute_score(duration, total_commits)
+    else:
+        score = {"base_score": 0, "speed_bonus": 0, "efficiency_penalty": 0, "final_score": 0}
 
     return {
         "run_id": state.get("run_id"),

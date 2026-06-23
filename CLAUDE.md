@@ -17,19 +17,22 @@ An autonomous CI/CD healing agent: takes a GitHub repo URL, clones it, detects t
 
 ## Commands
 
-No build tooling exists yet. Once scaffolded, the intended commands are:
-
 ```bash
-# Backend (from backend/)
+# Backend (from backend/) — run uvicorn from the activated venv so the agent's
+# sandbox can resolve the target repo's test runner (pytest/npm) on PATH.
 pip install -r requirements.txt
 uvicorn main:app --reload
+pytest                      # backend unit tests (tests/, config in pytest.ini)
+pytest tests/test_scorer.py # a single test file
 
 # Frontend (from frontend/)
 npm install
 npm run dev
+npm test                    # frontend unit tests (vitest run)
+npm run build               # tsc type-check + vite build
 ```
 
-There is no test/lint setup in the spec — add one when scaffolding and update this section.
+Backend tests use `conftest.py` to set dummy `GROQ_API_KEY`/`GITHUB_TOKEN`, so they run without a real `.env`.
 
 ## Architecture: three isolated layers
 
@@ -57,11 +60,13 @@ analyze_repo → run_tests → diagnose → generate_fixes → commit_fixes → 
                   └──────────────── (CI failed, retries remain) ──────────────────┘
 ```
 
-Routing: after `run_tests`, if `all_tests_passing` → END, else → `diagnose`. After `monitor_ci`, if `should_stop` (passed OR retries exhausted OR error) → END, else → `run_tests`.
+Routing: after `analyze_repo`, if `should_stop` (bad clone, unknown stack, or no test files) → END. After `run_tests`, if `all_tests_passing` (or `should_stop`, e.g. a timeout) → END, else → `diagnose`. After `monitor_ci`, if `should_stop` (passed OR retries exhausted OR error) → END, else → `run_tests`.
 
 - `AgentState` (TypedDict in `agent/state.py`) is the single source of truth. **Define it completely before writing any node.**
 - Every node signature is `async def node(state: AgentState) -> dict` and returns **only the keys that changed**.
 - `fixes` and `ci_results` use LangGraph `Annotated[list, add]` reducers — they accumulate across iterations; do not overwrite them.
+
+**Monorepos:** `analyze_repo` calls `stack_detector.detect_projects()`, which returns **every** testable project (each a `ProjectInfo` with its own `stack`, absolute `project_dir`, and `test_command`) — a repo with a Python `backend/` and a Node `frontend/` is healed in one run. `run_tests` runs each project; `diagnose` tags each `FailureInfo` with its `project_dir`; `fix` reads/writes files within that project but records repo-root-relative paths (e.g. `backend/calc.py`). git clone/commit/push always operate at `workspace_path` (the repo root). An aggregate root manifest that shadows a deeper same-stack project is dropped.
 
 ## Hard constraints — never deviate
 

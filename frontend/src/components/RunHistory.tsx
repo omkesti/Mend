@@ -1,15 +1,7 @@
 import { useEffect } from "react";
 import { useRunStore } from "../store/runStore";
+import { shortRepo } from "../lib/format";
 import StatusBadge from "./StatusBadge";
-
-function shortRepo(url: string): string {
-  return url
-    .replace(/\.git$/, "")
-    .replace(/\/$/, "")
-    .split("/")
-    .slice(-2)
-    .join("/");
-}
 
 export default function RunHistory({ onSelect }: { onSelect?: (runId: string) => void }) {
   const runHistory = useRunStore((s) => s.runHistory);

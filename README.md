@@ -140,6 +140,22 @@ Every run also writes a `results.json` to its workspace folder (`{WORKSPACE_DIR}
 | Node | `package.json` | `scripts.test`, or `npx jest`/`mocha`/`vitest` from deps |
 | Go | `go.mod` | `go test ./... -v` |
 
+### Monorepos
+
+Mend detects **every** testable project in a repo, not just one. A repo with a
+Python `backend/` and a Node `frontend/` is healed in a single run — each
+project's suite is run, diagnosed, and fixed independently, and all fixes land
+in one `[AI-AGENT]` commit. An aggregate root manifest (e.g. a root
+`requirements.txt` that just re-exports a sub-project) is ignored in favor of
+the real sub-project. (This repo is itself a monorepo and heals itself.)
+
+## Running the tests
+
+```bash
+cd backend && pytest          # backend unit tests
+cd frontend && npm test       # frontend unit tests (vitest)
+```
+
 ## Scoring
 
 ```

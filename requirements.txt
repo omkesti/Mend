@@ -1,0 +1,4 @@
+# Root requirements for the Mend project.
+# The backend holds the authoritative, pinned dependency list; this file simply
+# re-exports it so `pip install -r requirements.txt` works from the repo root.
+-r backend/requirements.txt

@@ -39,9 +39,10 @@ element MUST be an object with exactly these keys:
 If there are no actionable failures, output an empty array []."""
 
 
-def _fallback_failure(raw_output: str) -> FailureInfo:
+def _fallback_failure(project_dir: str, raw_output: str) -> FailureInfo:
     return FailureInfo(
         file_path="unknown",
+        project_dir=project_dir,
         bug_type="LOGIC",
         line_number=None,
         description="investigate the failing test output and correct the defect",
@@ -49,12 +50,9 @@ def _fallback_failure(raw_output: str) -> FailureInfo:
     )
 
 
-async def diagnose_failures(state: AgentState) -> dict:
-    """Produce a structured failure list from the latest raw test output."""
-    raw_output = state.get("raw_test_output", "") or ""
-    # Keep the tail — stack traces and assertion errors land at the end.
+async def _diagnose_one(project_dir: str, raw_output: str) -> list[FailureInfo]:
+    """Diagnose a single project's failing output into structured failures."""
     truncated = raw_output[-_MAX_OUTPUT_CHARS:]
-
     try:
         text = await complete_text(DIAGNOSE_SYSTEM, truncated, _MAX_TOKENS)
         parsed = json.loads(strip_code_fences(text))
@@ -69,13 +67,22 @@ async def diagnose_failures(state: AgentState) -> dict:
             failures.append(
                 FailureInfo(
                     file_path=str(item.get("file_path", "unknown")),
+                    project_dir=project_dir,
                     bug_type=clamp_bug_type(item.get("bug_type")),
                     line_number=line if isinstance(line, int) else None,
                     description=str(item.get("description", "")),
                     raw_output=str(item.get("raw_output", "")),
                 )
             )
-        return {"failures": failures}
+        return failures
     except Exception:  # noqa: BLE001 — never crash the loop on a parse error
         logger.exception("diagnose failed to parse LLM output; using fallback")
-        return {"failures": [_fallback_failure(truncated)]}
+        return [_fallback_failure(project_dir, truncated)]
+
+
+async def diagnose_failures(state: AgentState) -> dict:
+    """Diagnose every failing project into a tagged list of failures."""
+    failures: list[FailureInfo] = []
+    for fp in state.get("failing_projects", []):
+        failures.extend(await _diagnose_one(fp["project_dir"], fp["raw_output"]))
+    return {"failures": failures}

@@ -1,15 +1,16 @@
-"""run_tests node: execute the detected test suite and capture the result.
+"""run_tests node: execute every project's suite and collect failing ones.
 
-Pivot node in the loop. A clean exit (returncode 0, no timeout) ends the graph;
-any failure feeds the raw output to `diagnose`. A timeout counts as a failure
-so the loop can attempt fixes rather than hanging.
+Pivot node in the loop. If all projects pass, the graph ends. Any project that
+fails contributes a FailingProject (tagged with its dir + stack) for diagnose to
+work through. A timeout in any project is terminal — a suite that won't run
+can't be healed.
 """
 
 from __future__ import annotations
 
 import logging
 
-from agent.state import AgentState
+from agent.state import AgentState, FailingProject
 from agent.tools import sandbox
 from config import get_settings
 
@@ -18,25 +19,30 @@ settings = get_settings()
 
 
 async def run_tests_node(state: AgentState) -> dict:
-    """Run the test command and report whether everything passed."""
-    result = await sandbox.run_tests(
-        state["workspace_path"],
-        state["test_command"],
-        state["detected_stack"],
-    )
+    """Run each project's test command; report failures per project."""
+    failing: list[FailingProject] = []
 
-    if result["timed_out"]:
-        # A suite that won't run can't be healed — stop with a clear message.
-        msg = f"Test execution timed out after {settings.sandbox_timeout}s."
-        logger.warning("run_tests timed out for run %s", state.get("run_id"))
-        return {"all_tests_passing": False, "should_stop": True, "error": msg,
-                "raw_test_output": msg}
+    for project in state["projects"]:
+        result = await sandbox.run_tests(
+            project["project_dir"], project["test_command"], project["stack"]
+        )
 
-    if result["returncode"] == 0:
-        return {"all_tests_passing": True, "failures": []}
+        if result["timed_out"]:
+            msg = f"Test execution timed out after {settings.sandbox_timeout}s ({project['stack']} @ {project['project_dir']})."
+            logger.warning("run_tests timed out for run %s", state.get("run_id"))
+            return {"all_tests_passing": False, "should_stop": True, "error": msg,
+                    "failing_projects": []}
 
-    combined = result["stdout"]
-    if result["stderr"]:
-        combined = f"{combined}\n{result['stderr']}" if combined else result["stderr"]
+        if result["returncode"] != 0:
+            combined = result["stdout"]
+            if result["stderr"]:
+                combined = f"{combined}\n{result['stderr']}" if combined else result["stderr"]
+            failing.append(FailingProject(
+                project_dir=project["project_dir"], stack=project["stack"],
+                raw_output=combined,
+            ))
 
-    return {"raw_test_output": combined, "all_tests_passing": False}
+    if not failing:
+        return {"all_tests_passing": True, "failures": [], "failing_projects": []}
+
+    return {"all_tests_passing": False, "failing_projects": failing}

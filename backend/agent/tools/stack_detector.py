@@ -53,10 +53,19 @@ class StackInfo(TypedDict):
     stack: str
     test_command: str
     test_files: list[str]
+    project_dir: str  # subdir (relative, POSIX) holding the stack; "" for root
 
 
-def _has_marker(workspace: Path, markers: list[str]) -> bool:
-    return any((workspace / marker).exists() for marker in markers)
+def _iter_marker_dirs(workspace: Path, markers: list[str]):
+    """Yield directories (anywhere in the tree) that contain a stack marker."""
+    for marker in markers:
+        for path in workspace.rglob(marker):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(workspace)
+            if _EXCLUDE_DIRS & set(rel.parts):
+                continue
+            yield path.parent
 
 
 def _find_test_files(workspace_path: str, patterns: list[str]) -> list[str]:
@@ -115,19 +124,48 @@ def _detect_test_command(
     return profile["default_command"]
 
 
-def detect_stack(workspace_path: str) -> StackInfo:
-    """Detect the stack and resolve its test command and test files."""
+def detect_projects(workspace_path: str) -> list[StackInfo]:
+    """Detect every distinct (stack, directory) project in the repo.
+
+    Returns all projects so a monorepo with, say, a Python `backend/` and a Node
+    `frontend/` can be healed together. Each entry's `test_files` are relative to
+    that project's `project_dir`; `project_dir` is "" for a project at the root.
+    """
     workspace = Path(workspace_path)
+    seen: set[tuple[str, str]] = set()
+    projects: list[StackInfo] = []
 
     for stack, profile in STACK_PROFILES.items():
-        if _has_marker(workspace, profile["markers"]):
-            test_command = _detect_test_command(workspace_path, stack, profile)
-            test_files = _find_test_files(workspace_path, profile["test_patterns"])
-            return StackInfo(
-                stack=stack,
-                test_command=test_command,
-                test_files=test_files,
+        for found_dir in _iter_marker_dirs(workspace, profile["markers"]):
+            key = (stack, str(found_dir))
+            if key in seen:
+                continue
+            seen.add(key)
+            rel = found_dir.relative_to(workspace).as_posix()
+            projects.append(
+                StackInfo(
+                    stack=stack,
+                    test_command=_detect_test_command(str(found_dir), stack, profile),
+                    test_files=_find_test_files(str(found_dir), profile["test_patterns"]),
+                    project_dir="" if rel == "." else rel,
+                )
             )
 
-    logger.warning("Could not detect stack in %s — no known manifest found", workspace_path)
-    return StackInfo(stack="unknown", test_command="", test_files=[])
+    # Drop a project whose dir is an ancestor of a deeper project of the same
+    # stack — e.g. an aggregate root `requirements.txt` that just re-exports a
+    # sub-project. The deeper, more specific project is the real one, and the
+    # ancestor would otherwise run tests from the wrong directory.
+    return [p for p in projects if not _is_shadowed(p, projects)]
+
+
+def _is_shadowed(project: StackInfo, projects: list[StackInfo]) -> bool:
+    pdir = project["project_dir"]
+    for other in projects:
+        if other is project or other["stack"] != project["stack"]:
+            continue
+        odir = other["project_dir"]
+        if pdir == "" and odir != "":
+            return True
+        if odir.startswith(pdir + "/") and pdir != "":
+            return True
+    return False
