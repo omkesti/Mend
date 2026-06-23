@@ -18,29 +18,33 @@ class ConnectionManager:
     """Tracks live WebSocket connections keyed by run_id."""
 
     def __init__(self) -> None:
-        self._connections: dict[str, list[WebSocket]] = {}
+        self.active_connections: dict[str, list[WebSocket]] = {}
 
     async def connect(self, run_id: str, websocket: WebSocket) -> None:
         await websocket.accept()
-        self._connections.setdefault(run_id, []).append(websocket)
+        self.active_connections.setdefault(run_id, []).append(websocket)
 
     def disconnect(self, run_id: str, websocket: WebSocket) -> None:
-        conns = self._connections.get(run_id)
+        conns = self.active_connections.get(run_id)
         if not conns:
             return
         if websocket in conns:
             conns.remove(websocket)
         if not conns:
-            self._connections.pop(run_id, None)
+            self.active_connections.pop(run_id, None)
 
     async def broadcast(self, run_id: str, event: str, data: dict) -> None:
-        """Send `{event, data}` to every socket subscribed to run_id."""
+        """Send `{event, data}` to every socket subscribed to run_id.
+
+        Send errors are ignored — the client may have disconnected — and the
+        dead socket is dropped from the registry.
+        """
         payload = {"event": event, "data": data}
         dead: list[WebSocket] = []
-        for websocket in list(self._connections.get(run_id, [])):
+        for websocket in list(self.active_connections.get(run_id, [])):
             try:
                 await websocket.send_json(payload)
-            except Exception:  # noqa: BLE001 — drop sockets that error out
+            except Exception:  # noqa: BLE001 — client gone; drop it silently
                 dead.append(websocket)
         for websocket in dead:
             self.disconnect(run_id, websocket)
