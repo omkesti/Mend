@@ -13,7 +13,7 @@ Built first for personal use. Architected to scale into a startup product later.
 | Layer | Technology |
 |---|---|
 | Agent orchestration | LangGraph |
-| LLM | Claude Sonnet (`claude-sonnet-4-6`) via Anthropic SDK |
+| LLM | `llama-3.3-70b-versatile` via Groq SDK (OpenAI-compatible) |
 | Backend API | FastAPI + uvicorn (async) |
 | WebSocket | FastAPI native WebSocket |
 | Database | SQLite via SQLAlchemy async + aiosqlite (dev) |
@@ -336,13 +336,13 @@ Test file discovery uses glob patterns recursively, excluding `node_modules`, `.
 ## Environment variables — `backend/.env`
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
 GITHUB_TOKEN=ghp_...
 DATABASE_URL=sqlite+aiosqlite:///./cicd_agent.db
 MAX_RETRIES=5
 SANDBOX_TIMEOUT=120
 WORKSPACE_DIR=/tmp/cicd_agent_workspaces
-MODEL=claude-sonnet-4-6
+MODEL=llama-3.3-70b-versatile
 ```
 
 All accessed via `backend/config.py` using `pydantic-settings`. Never import `os.environ` directly anywhere else.
@@ -396,7 +396,7 @@ All components import typed functions from here, never raw `fetch`.
 
 | Layer | Allowed to touch | NOT allowed to touch |
 |---|---|---|
-| `agent/` | `AgentState`, tools, Anthropic SDK | FastAPI, SQLAlchemy, WebSocket |
+| `agent/` | `AgentState`, tools, Groq SDK | FastAPI, SQLAlchemy, WebSocket |
 | `api/` | FastAPI, WebSocket manager, route schemas | LangGraph, SQLAlchemy directly |
 | `services/` | Both agent graph and DB session | HTTP request/response objects |
 | `models/` | SQLAlchemy only | Everything else |
