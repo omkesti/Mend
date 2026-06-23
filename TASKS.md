@@ -9,7 +9,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 - [ ] Create GitHub repo named `Mend`
 - [ ] Clone locally, open in editor
 - [ ] Create root `.gitignore` (Python, Node, `.env`, `__pycache__`, `*.db`, `/tmp`, `node_modules`, `.venv`)
-- [ ] Place `CLAUDE.md` at repo root
+- [ ] Place `project_context.md` at repo root
 - [ ] Create `README.md` with one-line description (fill in detail later)
 - [ ] Create `backend/` and `frontend/` folders
 
@@ -46,9 +46,9 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 
 - [ ] Create `backend/models/__init__.py`
 - [ ] Create `backend/models/run.py`
-  - [ ] `AgentRun` table — all fields from CLAUDE.md
-  - [ ] `FixRecord` table — all fields from CLAUDE.md
-  - [ ] `CIIteration` table — all fields from CLAUDE.md
+  - [ ] `AgentRun` table — all fields from project_context.md
+  - [ ] `FixRecord` table — all fields from project_context.md
+  - [ ] `CIIteration` table — all fields from project_context.md
   - [ ] Relationships: `AgentRun.fixes`, `AgentRun.ci_iterations` with `cascade="all, delete-orphan"`
   - [ ] Verify all column types match what the frontend expects
 
@@ -61,7 +61,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
   - [ ] `FailureInfo` TypedDict
   - [ ] `FixInfo` TypedDict
   - [ ] `CIResult` TypedDict
-  - [ ] `AgentState` TypedDict — every field from CLAUDE.md
+  - [ ] `AgentState` TypedDict — every field from project_context.md
   - [ ] `fixes` and `ci_results` fields use `Annotated[list[...], add]` reducer
   - [ ] Double-check every field name matches what nodes will read/write — this is the contract
 
@@ -193,7 +193,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] `build_results(state, started_at) -> dict` — assembles the full results dict
   - [ ] Calls `compute_score()` internally
   - [ ] `write_results_json(results, workspace_path)` — writes `results.json` to workspace root
-  - [ ] Output shape matches `results.json` schema in CLAUDE.md exactly
+  - [ ] Output shape matches `results.json` schema in project_context.md exactly
 
 ### 6.3 Runner service
 
@@ -411,7 +411,7 @@ Build in this order — each component is independently testable with hardcoded 
 - [ ] Add `.gitignore` entries: `.env`, `*.db`, `/tmp`, `__pycache__`, `.venv`, `node_modules`, `dist`
 - [ ] Confirm `.env` is NOT committed (check `git status`)
 - [ ] Remove any debug `print()` statements left in agent nodes
-- [ ] Verify `CLAUDE.md` at root is accurate and up to date
+- [ ] Verify `project_context.md` at root is accurate and up to date
 - [ ] Do one clean run on a fresh clone to verify setup instructions in README work
 
 ---
