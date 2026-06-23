@@ -14,6 +14,7 @@ import asyncio
 import os
 import shlex
 import shutil
+import subprocess
 from pathlib import Path
 from typing import TypedDict
 
@@ -71,10 +72,44 @@ def _build_env(workspace_path: str, stack: str) -> dict[str, str]:
     return env
 
 
+def _run_blocking(
+    full_args: list[str], cwd: str, env: dict[str, str], timeout: int, command: str
+) -> CommandResult:
+    """Run a command synchronously and capture its output. Runs in a thread."""
+    try:
+        proc = subprocess.run(
+            full_args,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return CommandResult(
+            returncode=-1, stdout="",
+            stderr=f"Command timed out after {timeout}s: {command}", timed_out=True,
+        )
+
+    return CommandResult(
+        returncode=proc.returncode,
+        stdout=proc.stdout.decode("utf-8", errors="replace"),
+        stderr=proc.stderr.decode("utf-8", errors="replace"),
+        timed_out=False,
+    )
+
+
 async def _run(
     command: str, workspace_path: str, stack: str, timeout: int
 ) -> CommandResult:
-    """Run a shell command in the workspace with a clean env and timeout."""
+    """Run a shell command in the workspace with a clean env and timeout.
+
+    Uses a blocking `subprocess.run` in a worker thread rather than
+    `asyncio.create_subprocess_exec`: on Windows the async subprocess API only
+    works on the ProactorEventLoop, and under uvicorn (especially `--reload`)
+    the app may run on a SelectorEventLoop, where it raises NotImplementedError.
+    The thread-based approach is loop-agnostic and works on every platform.
+    """
     # POSIX-style parsing strips quotes correctly into argv on all platforms;
     # test/install commands are simple flag-based commands without backslashes.
     args = shlex.split(command)
@@ -95,33 +130,8 @@ async def _run(
     else:
         full_args = [exe, *args[1:]]
 
-    proc = await asyncio.create_subprocess_exec(
-        *full_args,
-        cwd=workspace_path,
-        env=env,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-
-    try:
-        stdout_b, stderr_b = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
-        )
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.wait()
-        return CommandResult(
-            returncode=-1,
-            stdout="",
-            stderr=f"Command timed out after {timeout}s: {command}",
-            timed_out=True,
-        )
-
-    return CommandResult(
-        returncode=proc.returncode if proc.returncode is not None else -1,
-        stdout=stdout_b.decode("utf-8", errors="replace"),
-        stderr=stderr_b.decode("utf-8", errors="replace"),
-        timed_out=False,
+    return await asyncio.to_thread(
+        _run_blocking, full_args, workspace_path, env, timeout, command
     )
 
 
