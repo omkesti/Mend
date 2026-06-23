@@ -1,4 +1,4 @@
-# Suture — Implementation Task List
+# Mend — Implementation Task List
 
 Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 
@@ -6,7 +6,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 
 ## Phase 0 — Repo setup
 
-- [ ] Create GitHub repo named `suture`
+- [ ] Create GitHub repo named `Mend`
 - [ ] Clone locally, open in editor
 - [ ] Create root `.gitignore` (Python, Node, `.env`, `__pycache__`, `*.db`, `/tmp`, `node_modules`, `.venv`)
 - [ ] Place `CLAUDE.md` at repo root
@@ -18,6 +18,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 ## Phase 1 — Backend foundation
 
 ### 1.1 Environment
+
 - [ ] Create `backend/requirements.txt` with all dependencies
 - [ ] Create `backend/.env.example` with all required keys and placeholder values
 - [ ] Create `backend/.env` (copy from example, fill in real keys — never commit this)
@@ -25,6 +26,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 - [ ] Run `pip install -r requirements.txt` — verify no errors
 
 ### 1.2 Config
+
 - [ ] Create `backend/config.py`
   - [ ] `Settings` class using `pydantic-settings` and `BaseSettings`
   - [ ] Fields: `anthropic_api_key`, `github_token`, `database_url`, `max_retries`, `sandbox_timeout`, `workspace_dir`, `model`
@@ -32,6 +34,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
   - [ ] All fields read from `.env` — no hardcoded values anywhere
 
 ### 1.3 Database
+
 - [ ] Create `backend/database.py`
   - [ ] Async engine from `DATABASE_URL` in settings
   - [ ] `AsyncSessionLocal` session factory
@@ -40,6 +43,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
   - [ ] `init_db()` that creates all tables on startup
 
 ### 1.4 Models
+
 - [ ] Create `backend/models/__init__.py`
 - [ ] Create `backend/models/run.py`
   - [ ] `AgentRun` table — all fields from CLAUDE.md
@@ -66,6 +70,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 ## Phase 3 — Agent tools
 
 ### 3.1 GitHub tool
+
 - [ ] Create `backend/agent/tools/__init__.py`
 - [ ] Create `backend/agent/tools/github.py`
   - [ ] `parse_repo_url(url)` → `(owner, repo_name)` tuple
@@ -77,12 +82,14 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
   - [ ] Handle `GithubException` gracefully — return `"error:{status}"` string, never crash
 
 ### 3.2 Sandbox tool
+
 - [ ] Create `backend/agent/tools/sandbox.py`
   - [ ] `run_tests(workspace_path, test_command, stack)` — asyncio subprocess, timeout from settings, return `{ returncode, stdout, stderr, timed_out }`
   - [ ] `_build_env(workspace_path, stack)` — clean env dict (PATH, HOME, PYTHONPATH, NODE_ENV, CI=true), no leaking of host secrets
   - [ ] `install_dependencies(workspace_path, stack)` — detect and run the right install command (pip, npm install, go mod download), 120s timeout
 
 ### 3.3 Stack detector
+
 - [ ] Create `backend/agent/tools/stack_detector.py`
   - [ ] `STACK_PROFILES` dict — Python/Node/Go with markers, test patterns, test dirs, commands
   - [ ] `detect_stack(workspace_path)` — return `{ stack, test_command, test_files }`
@@ -97,6 +104,7 @@ Work top to bottom. Don't skip ahead. Each section depends on the one above it.
 Create `backend/agent/nodes/__init__.py`
 
 ### 4.1 Analyze repo node
+
 - [ ] Create `backend/agent/nodes/analyze.py`
   - [ ] `async def analyze_repo(state: AgentState) -> dict`
   - [ ] Build `workspace_path` from `settings.workspace_dir + run_id`
@@ -105,6 +113,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] On any exception: return `should_stop: True`, `error: str(e)`
 
 ### 4.2 Run tests node
+
 - [ ] Create `backend/agent/nodes/run_tests.py`
   - [ ] `async def run_tests_node(state: AgentState) -> dict`
   - [ ] Call `sandbox.run_tests()`
@@ -112,6 +121,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] Else: return `raw_test_output: combined stdout+stderr`, `all_tests_passing: False`
 
 ### 4.3 Diagnose node
+
 - [ ] Create `backend/agent/nodes/diagnose.py`
   - [ ] `DIAGNOSE_SYSTEM` prompt — JSON-only output, fixed bug type enum, lowercase verb description rule
   - [ ] `async def diagnose_failures(state: AgentState) -> dict`
@@ -123,6 +133,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] Return `{ "failures": [...] }`
 
 ### 4.4 Fix node
+
 - [ ] Create `backend/agent/nodes/fix.py`
   - [ ] `FIX_SYSTEM` prompt — JSON-only output with `fixed_content` and `explanation` keys
   - [ ] `async def generate_fixes(state: AgentState) -> dict`
@@ -134,6 +145,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] Return `{ "fixes": [...] }` — LangGraph add reducer appends to existing list
 
 ### 4.5 Commit node
+
 - [ ] Create `backend/agent/nodes/commit.py`
   - [ ] `async def commit_fixes(state: AgentState) -> dict`
   - [ ] Filter `state["fixes"]` to only `status == "fixed"` ones for this iteration
@@ -143,6 +155,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] Return `{ "current_iteration": iteration, "ci_results": [ci_result] }`
 
 ### 4.6 Monitor CI node
+
 - [ ] Create `backend/agent/nodes/monitor_ci.py`
   - [ ] `async def monitor_ci(state: AgentState) -> dict`
   - [ ] Poll `get_ci_status()` with exponential-ish backoff: `[5, 10, 15, 20, 30, 30, 30]` seconds
@@ -168,12 +181,14 @@ Create `backend/agent/nodes/__init__.py`
 ## Phase 6 — Services layer
 
 ### 6.1 Scorer
+
 - [ ] Create `backend/services/scorer.py`
   - [ ] `compute_score(duration_seconds, total_commits) -> dict` — pure function, no IO
   - [ ] Returns `{ base_score, speed_bonus, efficiency_penalty, final_score }`
   - [ ] `final_score` floors at 0
 
 ### 6.2 Result builder
+
 - [ ] Create `backend/services/result_builder.py`
   - [ ] `build_results(state, started_at) -> dict` — assembles the full results dict
   - [ ] Calls `compute_score()` internally
@@ -181,6 +196,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] Output shape matches `results.json` schema in CLAUDE.md exactly
 
 ### 6.3 Runner service
+
 - [ ] Create `backend/services/runner.py`
   - [ ] `async def run_agent(run_id, request, db)` — the only function that calls both the graph and DB
   - [ ] Create initial `AgentRun` DB record with `status: "running"` before graph starts
@@ -195,6 +211,7 @@ Create `backend/agent/nodes/__init__.py`
 ## Phase 7 — API layer
 
 ### 7.1 WebSocket manager
+
 - [ ] Create `backend/api/ws.py`
   - [ ] `ConnectionManager` class
   - [ ] `active_connections: dict[str, list[WebSocket]]`
@@ -204,6 +221,7 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] Singleton `manager = ConnectionManager()` at module level
 
 ### 7.2 Routes
+
 - [ ] Create `backend/api/routes/__init__.py`
 - [ ] Create `backend/api/routes/health.py`
   - [ ] `GET /api/health` → `{ "status": "ok" }`
@@ -215,9 +233,10 @@ Create `backend/agent/nodes/__init__.py`
   - [ ] `WebSocket /ws/{run_id}` — accept, register with manager, keep alive with receive loop, deregister on disconnect
 
 ### 7.3 Main app
+
 - [ ] Create `backend/main.py`
   - [ ] `lifespan` context manager: create `workspace_dir`, call `init_db()`
-  - [ ] `FastAPI(title="Suture", lifespan=lifespan)`
+  - [ ] `FastAPI(title="Mend", lifespan=lifespan)`
   - [ ] Add `CORSMiddleware` — allow all origins for local dev
   - [ ] Include routers from `api/routes/runs.py` and `api/routes/health.py`
   - [ ] Smoke test: `uvicorn main:app --reload` → `GET /api/health` returns 200
@@ -242,6 +261,7 @@ Before touching frontend, verify the full agent loop works end-to-end:
 ## Phase 9 — Frontend foundation
 
 ### 9.1 Project setup
+
 - [ ] `npm create vite@latest frontend -- --template react-ts` (or scaffold manually)
 - [ ] Install dependencies: `zustand`, `recharts`, `@tanstack/react-query`, `tailwindcss`, `autoprefixer`, `postcss`, `clsx`
 - [ ] Configure Tailwind: `tailwind.config.js` + `postcss.config.js` + `@tailwind` directives in `index.css`
@@ -249,6 +269,7 @@ Before touching frontend, verify the full agent loop works end-to-end:
 - [ ] Verify `npm run dev` opens without errors
 
 ### 9.2 Types
+
 - [ ] Create `src/types/index.ts`
   - [ ] `BugType` union literal type
   - [ ] `RunStatus` union literal type
@@ -259,6 +280,7 @@ Before touching frontend, verify the full agent loop works end-to-end:
   - [ ] `RunListItem` interface (summary)
 
 ### 9.3 API client
+
 - [ ] Create `src/lib/api.ts`
   - [ ] `API_BASE` from `import.meta.env.VITE_API_URL` with fallback to `http://localhost:8000`
   - [ ] `startRun(repoUrl, teamName, leaderName) -> Promise<{ run_id, branch_name, status }>`
@@ -267,6 +289,7 @@ Before touching frontend, verify the full agent loop works end-to-end:
   - [ ] All functions typed with interfaces from `types/index.ts`
 
 ### 9.4 WebSocket client
+
 - [ ] Create `src/lib/ws.ts`
   - [ ] `AgentWS` class
   - [ ] Constructor takes `runId` and callbacks: `onStatus`, `onComplete`, `onError`
@@ -280,6 +303,7 @@ Before touching frontend, verify the full agent loop works end-to-end:
 ## Phase 10 — Frontend state and data fetching
 
 ### 10.1 Zustand store
+
 - [ ] Create `src/store/runStore.ts`
   - [ ] State: `activeRunId`, `activeRun`, `runHistory`, `isLoading`, `_ws` (private)
   - [ ] `startRun(repoUrl, teamName, leaderName)` — call API, set `activeRunId`, connect WS, start polling
@@ -291,6 +315,7 @@ Before touching frontend, verify the full agent loop works end-to-end:
   - [ ] WS `onError` callback: set error on `activeRun`
 
 ### 10.2 useRun hook
+
 - [ ] Create `src/hooks/useRun.ts`
   - [ ] Takes `runId: string | null`
   - [ ] Polls `getRun(runId)` every 3 seconds via `setInterval` as a fallback
