@@ -23,6 +23,15 @@ from agent.nodes.run_tests import run_tests_node
 from agent.state import AgentState
 
 
+def analyze_ok(state: AgentState) -> str:
+    """Route after analyze_repo: 'stop' if setup failed, else 'continue'.
+
+    analyze_repo sets should_stop on a clone error or unknown stack without
+    populating test_command/detected_stack, so run_tests must be skipped.
+    """
+    return "stop" if state.get("should_stop") else "continue"
+
+
 def has_failures(state: AgentState) -> str:
     """Route after run_tests: tests green → 'passing', otherwise 'failing'."""
     return "passing" if state.get("all_tests_passing") else "failing"
@@ -46,7 +55,11 @@ def build_graph():
 
     graph.set_entry_point("analyze_repo")
 
-    graph.add_edge("analyze_repo", "run_tests")
+    graph.add_conditional_edges(
+        "analyze_repo",
+        analyze_ok,
+        {"continue": "run_tests", "stop": END},
+    )
     graph.add_conditional_edges(
         "run_tests",
         has_failures,

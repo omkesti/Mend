@@ -1,18 +1,29 @@
-"""Anthropic client factory and LLM-related helpers shared by agent nodes.
+"""Groq client factory and LLM-related helpers shared by agent nodes.
 
 Centralizes the async client and the JSON-extraction helpers so the diagnose
 and fix nodes don't each re-implement fence stripping or bug-type clamping.
+The backend is Groq (OpenAI-compatible chat completions); the model is set via
+`settings.model` (e.g. llama-3.3-70b-versatile).
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 
-from anthropic import AsyncAnthropic
+from groq import APIStatusError, AsyncGroq, RateLimitError
 
 from config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# Groq returns 429 or 413 (rate_limit_exceeded) when the per-minute token
+# budget is hit; back off and retry rather than failing the node.
+_RATE_LIMIT_STATUSES = {429, 413}
+_RATE_LIMIT_BACKOFF_SECONDS = 20
+_MAX_RATE_LIMIT_RETRIES = 3
 
 # The fixed bug-type enum. Anything the LLM emits outside this set is clamped
 # to LINTING (the documented fallback).
@@ -21,14 +32,14 @@ VALID_BUG_TYPES: frozenset[str] = frozenset(
 )
 FALLBACK_BUG_TYPE = "LINTING"
 
-_client: AsyncAnthropic | None = None
+_client: AsyncGroq | None = None
 
 
-def get_client() -> AsyncAnthropic:
-    """Return a lazily-constructed, process-wide async Anthropic client."""
+def get_client() -> AsyncGroq:
+    """Return a lazily-constructed, process-wide async Groq client."""
     global _client
     if _client is None:
-        _client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        _client = AsyncGroq(api_key=settings.groq_api_key)
     return _client
 
 
@@ -50,11 +61,26 @@ def strip_code_fences(text: str) -> str:
 
 
 async def complete_text(system: str, prompt: str, max_tokens: int) -> str:
-    """Send a single-turn request and return the concatenated text output."""
-    response = await get_client().messages.create(
-        model=settings.model,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return "".join(block.text for block in response.content if block.type == "text")
+    """Send a single-turn chat completion, retrying on rate-limit errors."""
+    for attempt in range(_MAX_RATE_LIMIT_RETRIES + 1):
+        try:
+            response = await get_client().chat.completions.create(
+                model=settings.model,
+                max_tokens=max_tokens,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            return response.choices[0].message.content or ""
+        except (RateLimitError, APIStatusError) as exc:
+            status = getattr(exc, "status_code", None)
+            if status in _RATE_LIMIT_STATUSES and attempt < _MAX_RATE_LIMIT_RETRIES:
+                logger.warning(
+                    "Groq rate limit (%s); backing off %ss (attempt %s)",
+                    status, _RATE_LIMIT_BACKOFF_SECONDS, attempt + 1,
+                )
+                await asyncio.sleep(_RATE_LIMIT_BACKOFF_SECONDS)
+                continue
+            raise
+    raise RuntimeError("unreachable")  # loop either returns or raises

@@ -12,7 +12,7 @@ An autonomous CI/CD healing agent: takes a GitHub repo URL, clones it, detects t
 
 ## Tech stack
 
-- **Backend**: FastAPI + uvicorn (async), LangGraph agent, Anthropic SDK (`claude-sonnet-4-6`), SQLAlchemy async + aiosqlite, PyGithub + GitPython.
+- **Backend**: FastAPI + uvicorn (async), LangGraph agent, Groq SDK (`llama-3.3-70b-versatile`, OpenAI-compatible chat completions), SQLAlchemy async + aiosqlite, PyGithub + GitPython.
 - **Frontend**: React 18 + Vite + TypeScript, Tailwind, Zustand, TanStack Query, Recharts.
 
 ## Commands
@@ -37,7 +37,7 @@ The defining property of this codebase is strict separation of concerns. Violati
 
 | Layer | May touch | Must NOT touch |
 |---|---|---|
-| `backend/agent/` | `AgentState`, tools, Anthropic SDK | FastAPI, SQLAlchemy, WebSocket |
+| `backend/agent/` | `AgentState`, tools, Groq SDK (`agent/llm.py`) | FastAPI, SQLAlchemy, WebSocket |
 | `backend/api/` | FastAPI, WebSocket manager, route schemas | LangGraph, SQLAlchemy directly |
 | `backend/services/` | agent graph **and** DB session (the only glue layer) | HTTP request/response objects |
 | `backend/models/` | SQLAlchemy only | everything else |

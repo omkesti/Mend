@@ -17,16 +17,21 @@ logger = logging.getLogger(__name__)
 
 # Tail of the test output to send — failures are usually at the end.
 _MAX_OUTPUT_CHARS = 8000
-_MAX_TOKENS = 4096
+_MAX_TOKENS = 2048
 
 DIAGNOSE_SYSTEM = """You are a CI/CD failure analyst. You are given raw output \
 from a failing test suite. Identify each distinct failure.
 
+For each failure, name the SOURCE/implementation file that must be changed to \
+make the test pass — NOT the test file. The goal is to fix the code under test, \
+never to weaken or edit the tests. Only point at a test file if the defect is \
+genuinely inside the test itself.
+
 Output ONLY a valid JSON array — no markdown, no code fences, no preamble. Each \
 element MUST be an object with exactly these keys:
-  - "file_path": string, the source file to fix (relative path)
+  - "file_path": string, the source file to fix (relative path, not the test file)
   - "bug_type": one of exactly LINTING | SYNTAX | LOGIC | TYPE_ERROR | IMPORT | INDENTATION
-  - "line_number": integer line number, or null if unknown
+  - "line_number": integer line number in that source file, or null if unknown
   - "description": a fix instruction starting with a lowercase verb, e.g. \
 "remove the unused import"
   - "raw_output": the relevant snippet of the test output for this failure

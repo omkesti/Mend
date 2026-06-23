@@ -12,13 +12,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Typed settings loaded from `backend/.env`."""
 
-    anthropic_api_key: str
+    groq_api_key: str
     github_token: str
     database_url: str = "sqlite+aiosqlite:///./cicd_agent.db"
     max_retries: int = 5
     sandbox_timeout: int = 120
     workspace_dir: str = "/tmp/cicd_agent_workspaces"
-    model: str = "claude-sonnet-4-6"
+    model: str = "llama-3.3-70b-versatile"
 
     model_config = SettingsConfigDict(
         env_file=".env",

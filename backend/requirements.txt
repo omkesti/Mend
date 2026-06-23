@@ -4,7 +4,7 @@ uvicorn[standard]==0.34.0
 
 # Agent orchestration + LLM
 langgraph==0.2.60
-anthropic==0.42.0
+groq==0.13.1
 
 # Database (async)
 sqlalchemy[asyncio]==2.0.36

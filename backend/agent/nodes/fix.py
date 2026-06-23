@@ -16,7 +16,7 @@ from agent.state import AgentState, FailureInfo, FixInfo
 
 logger = logging.getLogger(__name__)
 
-_MAX_TOKENS = 16000
+_MAX_TOKENS = 4096
 
 FIX_SYSTEM = """You are an expert software engineer fixing a failing file. You \
 are given the full current contents of one file and a list of failures in it.

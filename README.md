@@ -28,7 +28,7 @@ The loop ends when CI passes, retries are exhausted, or an error occurs.
 | Layer | Technology |
 |---|---|
 | Agent orchestration | LangGraph |
-| LLM | Claude (`claude-sonnet-4-6`) via the Anthropic SDK |
+| LLM | `llama-3.3-70b-versatile` via the Groq SDK (OpenAI-compatible) |
 | Backend API | FastAPI + uvicorn (async) |
 | Realtime | FastAPI native WebSocket |
 | Database | SQLite via SQLAlchemy async + aiosqlite |
@@ -92,13 +92,13 @@ npm run dev
 ### Environment variables (`backend/.env`)
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
 GITHUB_TOKEN=ghp_...
 DATABASE_URL=sqlite+aiosqlite:///./cicd_agent.db
 MAX_RETRIES=5
 SANDBOX_TIMEOUT=120
 WORKSPACE_DIR=/tmp/cicd_agent_workspaces
-MODEL=claude-sonnet-4-6
+MODEL=llama-3.3-70b-versatile
 ```
 
 ## API
