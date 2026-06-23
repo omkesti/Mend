@@ -1,0 +1,19 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Agent orchestration + LLM
+langgraph==0.2.60
+anthropic==0.42.0
+
+# Database (async)
+sqlalchemy[asyncio]==2.0.36
+aiosqlite==0.20.0
+
+# GitHub / git
+PyGithub==2.5.0
+GitPython==3.1.43
+
+# Config
+pydantic==2.10.4
+pydantic-settings==2.7.1
